@@ -191,8 +191,7 @@ charts.js ──→ main.js
 
 > **주의** — 편집기 미리보기에서 등록한 문의 데이터는 배포된 사이트에 나타나지 않습니다.
 > 프로덕션 데이터가 필요하면 배포 후 라이브 DB에 시드해야 합니다.
-https://www.genspark.ai/api/code_sandbox_light_git/preview/26c62a8e-6771-40ed-b414-72c50cbb9048/index.html?canvas_history_id=b5e0c316bfc45595290c20491c2ec9f52f8e5efa#roadmap
-> 
+
 앱 정보> https://biodiagnostics.kdt2025.com/   
 저장소> https://github.com/97900kiki-rgb/Biodiagnostics
 
