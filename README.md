@@ -192,9 +192,6 @@ charts.js ──→ main.js
 > **주의** — 편집기 미리보기에서 등록한 문의 데이터는 배포된 사이트에 나타나지 않습니다.
 > 프로덕션 데이터가 필요하면 배포 후 라이브 DB에 시드해야 합니다.
 
-앱 정보> https://biodiagnostics.kdt2025.com/   
-저장소> https://github.com/97900kiki-rgb/Biodiagnostics
-
 ## 10. 접근성 및 반응형
 
 - 시맨틱 태그 사용 (`header` / `nav` / `main` / `section` / `article` / `aside` / `footer`)
@@ -211,5 +208,7 @@ charts.js ──→ main.js
 ES Modules(`type="module"`) · Canvas 2D · IntersectionObserver · ResizeObserver 사용.
 **Chrome / Edge / Firefox / Safari 최신 버전** 및 iOS Safari 15+, Android Chrome 기준입니다.
 `file://` 로 직접 열면 ES Module·fetch 제약으로 동작하지 않으므로 **HTTP 서버로 제공**해야 합니다.   
-<img width="1294" height="824" alt="image" src="https://github.com/user-attachments/assets/a279c8eb-137e-4333-9b8c-06fdaf774796" />
+<img width="1294" height="824" alt="image" src="https://github.com/user-attachments/assets/a279c8eb-137e-4333-9b8c-06fdaf774796" />   
+실행링크> https://biodiagnostics.kdt2025.com/   
+저장소> https://github.com/97900kiki-rgb/Biodiagnostics
 
