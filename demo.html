@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>라이브 ECG 모니터 — CardioPatch 시뮬레이터</title>
+<meta name="description" content="웨어러블 ECG 패치의 실시간 부정맥 진단 과정을 재현하는 브라우저 시뮬레이터. 잡음 주입, 필터 체인, QRS 검출, AI 판정을 실시간으로 확인하세요." />
+<meta name="theme-color" content="#070b14" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="css/style.css" />
+<link rel="stylesheet" href="css/demo.css" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23070b14'/%3E%3Cpath d='M5 17h4l2.5-6 3.5 12 3-8 2 2h7' fill='none' stroke='%2316e0a3' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" />
+</head>
+<body class="demo-page">
+<div class="bg-fx" aria-hidden="true"></div>
+<div class="bg-grid" aria-hidden="true"></div>
+
+<a class="skip-link" href="#main">본문으로 바로 가기</a>
+
+<!-- ══════════ 상단 바 ══════════ -->
+<header class="site-header is-scrolled" id="site-header">
+  <div class="wrap">
+    <nav class="nav" aria-label="주요 메뉴">
+      <a class="brand" href="index.html" aria-label="CardioPatch 홈으로 돌아가기">
+        <span class="brand__mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#16e0a3" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M2 12h4l2-5 3 10 2.5-7 1.5 2h7" />
+          </svg>
+        </span>
+        <span class="brand__text">
+          <span class="brand__name">CardioPatch</span>
+          <span class="brand__sub">Live Monitor</span>
+        </span>
+      </a>
+
+      <button class="nav__toggle" id="nav-toggle" aria-label="메뉴 열기" aria-expanded="false" aria-controls="nav-links"><span></span></button>
+
+      <div class="nav__links" id="nav-links">
+        <a href="index.html#roadmap">3단계 로드맵</a>
+        <a href="index.html#studio">신호 라이브러리</a>
+        <a href="index.html#ai">AI 성능</a>
+        <a href="index.html#contact" class="nav__cta">파트너십 문의</a>
+      </div>
+    </nav>
+  </div>
+</header>
+
+<main id="main" class="demo-main">
+  <div class="wrap">
+
+    <!-- ══════════ 인트로 ══════════ -->
+    <section class="demo-hero" aria-labelledby="demo-h1">
+      <span class="eyebrow">Live Simulator</span>
+      <h1 id="demo-h1">실시간 부정맥 <span class="gradient-text">진단 파이프라인</span></h1>
+      <p class="section-lead">
+        합성 ECG 스트림을 생성하고, 잡음과 운동 아티팩트를 주입한 뒤 실제 디지털 필터 체인과
+        Pan-Tompkins 파생 QRS 검출기를 통과시킵니다. 검출된 RR 간격으로 부정맥을 판정합니다.
+      </p>
+      <p class="disclaimer" style="max-width:none">
+        ⚠️ 이 화면은 <b>시뮬레이션</b>입니다. 브라우저에서 합성한 신호이며 실제 환자 측정·진단이 아닙니다.
+        의료기기 인허가 전에는 임상 판단에 사용할 수 없습니다.
+      </p>
+    </section>
+
+    <!-- ══════════ 라이브 상태 바 ══════════ -->
+    <section class="status-bar" aria-label="모니터 상태">
+      <div class="status-bar__item">
+        <span class="status-dot" id="status-dot" aria-hidden="true"></span>
+        <span id="status-text">시뮬레이션 실행 중</span>
+      </div>
+      <div class="status-bar__sep" aria-hidden="true"></div>
+      <div class="status-bar__item">
+        <span class="status-bar__k">경과</span>
+        <b id="s-elapsed">00:00</b>
+      </div>
+      <div class="status-bar__item">
+        <span class="status-bar__k">검출 심박</span>
+        <b id="s-beats">0</b>
+      </div>
+      <div class="status-bar__item">
+        <span class="status-bar__k">샘플레이트</span>
+        <b id="s-fs">500 Hz</b>
+      </div>
+      <div class="status-bar__item">
+        <span class="status-bar__k">화면 창</span>
+        <b id="s-window">10.0 s</b>
+      </div>
+      <div class="status-bar__item status-bar__item--right">
+        <button class="btn btn--ghost btn--sm" type="button" id="btn-pause" aria-pressed="false">일시정지</button>
+        <button class="btn btn--ghost btn--sm" type="button" id="btn-snapshot">파형 캡처</button>
+        <button class="btn btn--ghost btn--sm" type="button" id="btn-reset">초기화</button>
+      </div>
+    </section>
+
+    <!-- ══════════ 메인 그리드 ══════════ -->
+    <div class="demo-layout">
+
+      <!-- ── 좌: 모니터 ── -->
+      <section class="demo-col" aria-label="ECG 파형 모니터">
+        <div class="monitor monitor--big" id="big-monitor">
+          <div class="monitor__grid-lines" aria-hidden="true"></div>
+          <div class="monitor__stack">
+            <div class="monitor__readout">
+              <span class="monitor__hr"><span id="big-hr">—</span><small>bpm</small></span>
+              <span class="verdict-mini" id="big-rhythm">분석 중</span>
+              <span class="monitor__meta">
+                RMSSD <b id="big-hrv">—</b> ms · SDNN <b id="big-sdnn">—</b> ms<br />
+                pNN50 <b id="big-pnn">—</b>% · 신호품질 <b id="big-sqi">—</b>%
+              </span>
+            </div>
+
+            <div class="lead-row lead-row--main">
+              <span class="lead-row__label">CH1 · FILTERED ECG (0.5–40 Hz + 60 Hz NOTCH)</span>
+              <canvas id="canvas-main" width="1600" height="460" aria-label="필터링된 실시간 심전도 파형"></canvas>
+            </div>
+
+            <div class="lead-row">
+              <span class="lead-row__label">CH2 · RAW ADC (잡음 · 기저선 동요 포함)</span>
+              <canvas id="canvas-raw" width="1600" height="220" aria-label="원시 심전도 파형"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid-2 mt-3">
+          <div class="panel card--flat">
+            <div class="panel__head">
+              <h2 class="panel__title">실시간 이벤트 로그</h2>
+              <button class="btn btn--ghost btn--sm" type="button" id="log-clear">지우기</button>
+            </div>
+            <div class="event-log" id="event-log" role="log" aria-live="polite">
+              <p class="event-log__empty">시뮬레이션을 시작했습니다. 리듬을 바꾸면 검출 이벤트가 기록됩니다.</p>
+            </div>
+          </div>
+
+          <div class="panel card--flat">
+            <div class="panel__head">
+              <h2 class="panel__title">판정 이력 (타임라인)</h2>
+              <span class="tag" id="history-count">0건</span>
+            </div>
+            <ul class="timeline" id="timeline">
+              <li class="timeline__empty">아직 판정 기록이 없습니다.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── 우: 진단 패널 ── -->
+      <aside class="demo-side" aria-label="진단 및 제어 패널">
+        <!-- AI 판정 -->
+        <section class="verdict" id="verdict-card" aria-live="polite">
+          <div class="verdict__label">AI 판정 결과</div>
+          <div class="verdict__type" id="verdict-type">분석 중…</div>
+          <div class="verdict__en" id="verdict-en">accumulating RR intervals</div>
+          <div class="verdict__conf">
+            <span class="conf-bar"><span class="conf-bar__fill" id="conf-fill"></span></span>
+            <span class="conf-value" id="conf-val">—</span>
+          </div>
+          <div class="stat-row">
+            <div class="stat-box">
+              <div class="stat-box__v" id="v-risk">—</div>
+              <div class="stat-box__k">위험 점수 (0–100)</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-box__v" id="v-sev">—</div>
+              <div class="stat-box__k">심각도 등급</div>
+            </div>
+          </div>
+          <p class="verdict__note" id="verdict-note">최소 5회 심박이 검출되어야 판정이 시작됩니다.</p>
+        </section>
+
+        <!-- 리듬 -->
+        <section class="panel card--flat" aria-label="리듬 선택">
+          <div class="ctrl-group__label">리듬 시나리오</div>
+          <div class="rhythm-btns rhythm-btns--wide" id="rhythm-btns"></div>
+          <p class="ctrl-hint" id="rhythm-hint">리듬을 선택하면 즉시 스트림에 반영됩니다.</p>
+        </section>
+
+        <!-- 신호 조건 -->
+        <section class="panel card--flat" aria-label="신호 조건">
+          <div class="ctrl-group__label">신호 조건</div>
+          <div class="switch-row">
+            <span class="switch-row__label">60Hz 전원 잡음</span>
+            <span class="switch"><input type="checkbox" id="opt-noise" aria-label="60Hz 전원 잡음 주입" /><span class="switch__track"></span></span>
+          </div>
+          <div class="switch-row">
+            <span class="switch-row__label">필터 체인 적용</span>
+            <span class="switch"><input type="checkbox" id="opt-filter" checked aria-label="필터 체인 적용" /><span class="switch__track"></span></span>
+          </div>
+          <div class="switch-row">
+            <span class="switch-row__label">운동 아티팩트</span>
+            <span class="switch"><input type="checkbox" id="opt-motion" checked aria-label="운동 아티팩트 주입" /><span class="switch__track"></span></span>
+          </div>
+
+          <div class="range-row">
+            <div class="range-row__top"><span>표시 속도</span><span id="opt-speed-val">25 mm/s</span></div>
+            <input type="range" id="opt-speed" min="8" max="50" step="1" value="25" aria-label="파형 표시 속도" />
+          </div>
+          <div class="range-row">
+            <div class="range-row__top"><span>신호 증폭</span><span id="opt-gain-val">1.0×</span></div>
+            <input type="range" id="opt-gain" min="4" max="24" step="1" value="10" aria-label="신호 증폭" />
+          </div>
+          <div class="range-row">
+            <div class="range-row__top"><span>노치 주파수</span><span id="opt-notch-val">60 Hz</span></div>
+            <input type="range" id="opt-notch" min="50" max="60" step="1" value="60" aria-label="노치 필터 주파수" />
+          </div>
+        </section>
+
+        <!-- 검출 상태 -->
+        <section class="panel card--flat" aria-label="검출기 상태">
+          <div class="ctrl-group__label">검출기 · 분류기 상태</div>
+          <div class="kv-list">
+            <div class="kv"><span>QRS 검출</span><b id="k-qrs">대기</b></div>
+            <div class="kv"><span>불응기</span><b>200 ms</b></div>
+            <div class="kv"><span>적응형 임계값</span><b id="k-thr">—</b></div>
+            <div class="kv"><span>RR 버퍼</span><b id="k-buf">0 / 26</b></div>
+            <div class="kv"><span>QRS 폭 지수</span><b id="k-width">—</b></div>
+            <div class="kv"><span>판정 클래스</span><b id="k-class">—</b></div>
+          </div>
+          <div class="mini-meter" aria-hidden="true">
+            <span class="mini-meter__label">판정 신뢰도</span>
+            <span class="mini-meter__track"><span class="mini-meter__fill" id="k-conf"></span></span>
+          </div>
+        </section>
+
+        <!-- 참고 -->
+        <section class="panel card--flat" aria-label="리듬별 기대 지표">
+          <div class="ctrl-group__label">리듬별 기대 지표</div>
+          <div class="kv-list" id="expect-list"></div>
+        </section>
+      </aside>
+    </div>
+
+    <!-- ══════════ 캡처 결과 ══════════ -->
+    <section class="panel card--flat snapshot-box" id="snapshot-box" aria-live="polite">
+      <div class="panel__head">
+        <h2 class="panel__title">파형 캡처</h2>
+        <span class="tag tag--mint">PNG · 클라이언트 캡처</span>
+      </div>
+      <img id="snapshot-img" alt="캡처된 필터링 심전도 파형 이미지" />
+      <p class="snapshot-box__hint">이미지를 길게 누르거나 우클릭해 저장할 수 있습니다. 실제 측정 데이터가 아닌 시뮬레이션 파형입니다.</p>
+    </section>
+
+    <!-- ══════════ 요약 지표 ══════════ -->
+    <section class="mt-4" aria-labelledby="summary-title">
+      <h2 class="section-title" id="summary-title" style="font-size:22px">세션 요약</h2>
+      <div class="metric-grid mt-2">
+        <div class="metric"><div class="metric__value" id="sum-beats" style="color:var(--mint)">0</div><div class="metric__label">누적 검출 심박</div><div class="metric__note">detected beats</div></div>
+        <div class="metric"><div class="metric__value" id="sum-avg" style="color:var(--cyan)">—</div><div class="metric__label">평균 심박수 (bpm)</div><div class="metric__note">mean heart rate</div></div>
+        <div class="metric"><div class="metric__value" id="sum-hrv" style="color:var(--amber)">—</div><div class="metric__label">평균 RMSSD (ms)</div><div class="metric__note">HRV proxy</div></div>
+        <div class="metric"><div class="metric__value" id="sum-alerts" style="color:var(--rose)">0</div><div class="metric__label">경고 · 응급 판정 횟수</div><div class="metric__note">warn + alert events</div></div>
+      </div>
+    </section>
+
+    <!-- ══════════ 파이프라인 설명 ══════════ -->
+    <section class="section section--tight" aria-labelledby="pipe-title">
+      <span class="eyebrow">Pipeline Detail</span>
+      <h2 class="section-title" id="pipe-title">화면에서 실제로 도는 계산</h2>
+      <p class="section-lead">
+        이 시뮬레이터는 표시용 그래프가 아니라, 아래 순서의 실제 신호처리 계산을 매 프레임 수행합니다.
+        필터를 끄거나 잡음을 켜면 그 결과가 파형과 판정에 즉시 반영됩니다.
+      </p>
+
+      <div class="panel card--flat mt-3">
+        <table class="spec-table">
+          <caption>Signal Processing Chain</caption>
+          <thead>
+            <tr><th scope="col">순서</th><th scope="col">연산</th><th scope="col">파라미터</th><th scope="col">목적</th></tr>
+          </thead>
+          <tbody>
+            <tr><th scope="row">1</th><td>합성 심박 생성 (P-QRS-T 형태학)</td><td><code>500 Hz</code> · 리듬별 RR 분포</td><td>부정맥별 파형 형태 재현</td></tr>
+            <tr><th scope="row">2</th><td>잡음 주입</td><td>백색 · 핑크 노이즈, 60Hz 사인, 기저선 동요 0.24/0.37Hz</td><td>실사용 환경 열화 모사</td></tr>
+            <tr><th scope="row">3</th><td>60Hz 노치 필터</td><td>biquad, Q = 20</td><td>전원 잡음 제거</td></tr>
+            <tr><th scope="row">4</th><td>0.5Hz 하이패스</td><td>biquad Q = 0.707</td><td>기저선 드리프트 제거</td></tr>
+            <tr><th scope="row">5</th><td>40Hz 로우패스</td><td>biquad Q = 0.707</td><td>근전도성 고주파 잡음 제거</td></tr>
+            <tr><th scope="row">6</th><td>QRS 검출</td><td>미분 → 제곱 → 150ms 이동창 적분 → 적응형 임계값 → 200ms 불응기</td><td>R 피크 시각 추출</td></tr>
+            <tr><th scope="row">7</th><td>특징 추출</td><td>RR 평균 · SDNN · RMSSD · pNN50 · QRS 폭 지수</td><td>분류기 입력 벡터</td></tr>
+            <tr><th scope="row">8</th><td>규칙 기반 분류</td><td>CV · RMSSD · bpm · 조기박동 수 · QRS 폭</td><td>5종 부정맥 판정 + 신뢰도</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="grid-3 mt-3">
+        <article class="card card--flat">
+          <h3 class="card__title" style="font-size:15.5px">필터를 꺼보세요</h3>
+          <p class="card__body">필터 체인을 해제하면 기저선이 흔들리고 60Hz 잡음이 파형에 그대로 드러납니다. QRS 검출 정확도가 떨어져 판정 신뢰도가 낮아지는 것을 확인할 수 있습니다.</p>
+        </article>
+        <article class="card card--flat">
+          <h3 class="card__title" style="font-size:15.5px">심방세동을 관찰하세요</h3>
+          <p class="card__body">P파가 사라지고 RR 간격이 불규칙해집니다. RMSSD와 pNN50이 크게 상승하며, 분류기가 큰 RR 변이를 근거로 AFib로 판정합니다.</p>
+        </article>
+        <article class="card card--flat">
+          <h3 class="card__title" style="font-size:15.5px">심실빈맥 경보</h3>
+          <p class="card__body">분당 175회 이상의 넓은 QRS가 연속되면 심각도 3등급(응급)으로 판정되어 경보 카드와 이벤트 로그가 붉게 표시됩니다.</p>
+        </article>
+      </div>
+    </section>
+
+    <div class="cta-band mt-4">
+      <h2>브리핑 자료로 돌아가기</h2>
+      <p>3단계 로드맵, 하드웨어 사양, AI 성능 목표를 한 페이지에서 확인하세요.</p>
+      <div class="cta-band__actions">
+        <a class="btn btn--primary" href="index.html">메인 브리핑으로</a>
+        <a class="btn btn--ghost" href="index.html#contact">파트너십 문의</a>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <div class="footer__bottom" style="margin-top:0;border-top:none">
+      <span>© 2026 CardioPatch Project. 시뮬레이션 데모.</span>
+      <span>합성 신호 · 클라이언트 전용 · 진단용 아님</span>
+    </div>
+  </div>
+</footer>
+
+<script type="module" src="js/demo.js"></script>
+</body>
+</html>
